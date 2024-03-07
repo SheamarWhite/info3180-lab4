@@ -1,6 +1,6 @@
 import os
 from app import app, db, login_manager
-from flask import render_template, request, redirect, url_for, flash, session, abort
+from flask import render_template, request, redirect, url_for, flash, session, abort, send_from_directory
 from flask_login import login_user, logout_user, current_user, login_required
 from werkzeug.utils import secure_filename
 from app.models import UserProfile
@@ -61,17 +61,17 @@ def login():
         # You will need to import the appropriate function to do so.
         # Then store the result of that query to a `user` variable so it can be
         # passed to the login_user() method below.
-        name = db.session.execute(db.select(UserProfile).filter_by(username=username))
-        passw = db.session.execute(db.select(UserProfile).filter_by(password=password))
+        user = db.session.execute(db.select(UserProfile).filter_by(username=username)).scalar()
 
-        if username == name and check_password_hash(passw, password):
-            user = UserProfile
+        if user is not None and check_password_hash(user.password, password):
         # Gets user id, load into session
-        login_user(user)
+            login_user(user)
+            flash('Logged in successfully.')
+            return redirect(url_for("upload"))
+        else:
+            flash('Username or Password is incorrect.', 'danger')
 
-        flash.flask('Logged in successfully.')
-        # Remember to flash a message to the user
-        return redirect(url_for("upload"))  # The user should be redirected to the upload form instead
+        # Remember to flash a message to the user  # The user should be redirected to the upload form instead
     return render_template("login.html", form=form)
 
 # user_loader callback. This callback is used to reload the user object from
@@ -115,3 +115,31 @@ def add_header(response):
 def page_not_found(error):
     """Custom 404 page."""
     return render_template('404.html'), 404
+
+def get_uploaded_images():
+    pics = []
+    rootdir = str(os.getcwd)
+    print (rootdir)
+    for subdir, files in os.walk(os.path.join(rootdir, '/uploads')):
+        for file in files:
+            pics.append(os.path.join(subdir, file))
+    return pics
+
+@app.route('/uploads/<filename>')
+def get_image(filename):
+    root_dir = os.getcwd
+    return send_from_directory(os.path.join(root_dir, app.config['UPLOAD_FOLDER']), filename)
+
+@app.route('/files')
+def files():
+    answer = []
+    pics = get_uploaded_images()
+    for img in pics:
+        print(get_image(img))
+    return render_template('files.html')
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    flash('You have been logged out.', 'success')
+    return redirect(url_for('home'))
